@@ -1,0 +1,58 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+// AGP 8+ requires namespace in every Android module.
+// Some older third-party Flutter plugins still rely on the AndroidManifest package.
+def applyLegacyNamespaceFallback = { project ->
+    def androidExt = project.extensions.findByName("android")
+    if (androidExt == null) {
+        return
+    }
+
+    def hasNamespace = false
+    try {
+        hasNamespace = androidExt.hasProperty("namespace") && androidExt.namespace != null
+    } catch (ignored) {
+        hasNamespace = false
+    }
+    if (hasNamespace) {
+        return
+    }
+
+    def manifest = project.file("src/main/AndroidManifest.xml")
+    if (!manifest.exists()) {
+        return
+    }
+
+    def parsed = new XmlSlurper(false, false).parse(manifest)
+    def manifestPackage = parsed.@package?.text()
+    if (manifestPackage) {
+        androidExt.namespace = manifestPackage
+    }
+}
+
+subprojects { project ->
+    if (project.state.executed) {
+        applyLegacyNamespaceFallback(project)
+    } else {
+        project.afterEvaluate {
+            applyLegacyNamespaceFallback(project)
+        }
+    }
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

@@ -1,0 +1,2 @@
+/Users/trek-matrix/Work/Kevins_work/XIRJA-frontend-marnisi/android/app/.cxx/RelWithDebInfo/211l1y54/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/trek-matrix/Work/Kevins_work/XIRJA-frontend-marnisi/android/app/.cxx/RelWithDebInfo/211l1y54/arm64-v8a/CMakeFiles/rebuild_cache.dir

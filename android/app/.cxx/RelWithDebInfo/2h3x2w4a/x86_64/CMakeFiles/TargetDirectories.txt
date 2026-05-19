@@ -1,0 +1,2 @@
+/Users/trek-matrix/Work/Kevins_work/xirja_frontend/android/app/.cxx/RelWithDebInfo/2h3x2w4a/x86_64/CMakeFiles/edit_cache.dir
+/Users/trek-matrix/Work/Kevins_work/xirja_frontend/android/app/.cxx/RelWithDebInfo/2h3x2w4a/x86_64/CMakeFiles/rebuild_cache.dir
