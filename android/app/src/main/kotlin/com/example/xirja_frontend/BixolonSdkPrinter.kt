@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
-import com.bxl.BXLConst
 import com.bxl.config.editor.BXLConfigLoader
 import jpos.POSPrinter
 import jpos.POSPrinterConst
@@ -38,8 +37,10 @@ class BixolonSdkPrinter(
         private const val LOG_SCOPE = "BixolonSdkPrinter"
         private const val CLAIM_TIMEOUT_MS = 10_000
         private const val SDK_WARMUP_TIMEOUT_SECONDS = 15L
-        private const val OUTPUT_COMPLETE_TIMEOUT_SECONDS = 20L
         private const val SDK_LOGICAL_NAME_SPP_R310 = "SPP-R310"
+        // ESC |N — JavaPOS "Normal" reset prefix; matches the Bixolon sample's
+        // EscapeSequence.getString(0) used before every printNormal call.
+        private const val ESC_NORMAL_RESET = "|N"
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -55,7 +56,7 @@ class BixolonSdkPrinter(
     private var isSdkPrepared = false
 
     @Volatile
-    private var outputCompleteLatch: CountDownLatch? = null
+    private var lastErrorEvent: ErrorEvent? = null
 
     @Volatile
     private var activeLogicalName: String? = null
@@ -155,38 +156,41 @@ class BixolonSdkPrinter(
         ensureSdkPrepared()
 
         try {
+            lastErrorEvent = null
             val printer = ensurePrinterSession(
                 logicalName = logicalName,
                 productName = productName,
                 printerAddress = printerAddress
             )
 
+            // Sample parity: prepend an ESC |N "normal" reset so the printer
+            // starts each receipt in a known state, then append a small feed.
             val finalPrintData = buildString {
+                append(EscapeSequencePrefix)
+                append(ESC_NORMAL_RESET)
                 append(printData)
                 append("\n\n\n")
             }
-            val outputLatch = CountDownLatch(1)
-            outputCompleteLatch = outputLatch
             logger(LOG_SCOPE, "POSPrinter.printNormal", "chars=${finalPrintData.length}")
+            // Sync mode (setAsyncMode(false) at open time): printNormal blocks
+            // until the SDK finishes the job and throws JposException on error.
             printer.printNormal(POSPrinterConst.PTR_S_RECEIPT, finalPrintData)
-            logger(
-                LOG_SCOPE,
-                "POSPrinter.awaitOutputComplete start",
-                "timeoutSeconds=$OUTPUT_COMPLETE_TIMEOUT_SECONDS"
-            )
-            if (!outputLatch.await(OUTPUT_COMPLETE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                logger(
-                    LOG_SCOPE,
-                    "POSPrinter.awaitOutputComplete timeout",
-                    "timeoutSeconds=$OUTPUT_COMPLETE_TIMEOUT_SECONDS"
-                )
+            logger(LOG_SCOPE, "POSPrinter.printNormal success", "")
+
+            val asyncErr = lastErrorEvent
+            if (asyncErr != null) {
+                lastErrorEvent = null
+                val detail =
+                    "errorCode=${asyncErr.errorCode}, errorCodeExtended=${asyncErr.errorCodeExtended}, locus=${asyncErr.errorLocus}, response=${asyncErr.errorResponse}"
+                logger(LOG_SCOPE, "POSPrinter async error after printNormal", detail)
+                closeActiveSessionQuietly(reason = "async_error_event")
                 return BixolonPrintResult(
                     success = false,
-                    errorCode = "BIXOLON_OUTPUT_TIMEOUT",
-                    message = "Timed out waiting for BIXOLON output-complete event."
+                    errorCode = "BIXOLON_PRINTER_ERROR",
+                    message = "Printer reported an error event.",
+                    details = detail
                 )
             }
-            logger(LOG_SCOPE, "POSPrinter.awaitOutputComplete success", "")
 
             return BixolonPrintResult(success = true)
         } catch (t: Throwable) {
@@ -202,10 +206,11 @@ class BixolonSdkPrinter(
                 message = t.message ?: t::class.java.simpleName,
                 details = t.stackTraceToString()
             )
-        } finally {
-            outputCompleteLatch = null
         }
     }
+
+    private val EscapeSequencePrefix: String
+        get() = String(byteArrayOf(0x1B, 0x7C))
 
     fun printSampleReceipt(
         selectedPrinterName: String,
@@ -472,6 +477,9 @@ class BixolonSdkPrinter(
         })
         printer.addErrorListener(object : ErrorListener {
             override fun errorOccurred(event: ErrorEvent?) {
+                if (event != null) {
+                    lastErrorEvent = event
+                }
                 logger(
                     LOG_SCOPE,
                     "POSPrinter error event",
@@ -481,7 +489,6 @@ class BixolonSdkPrinter(
         })
         printer.addOutputCompleteListener(object : OutputCompleteListener {
             override fun outputCompleteOccurred(event: OutputCompleteEvent?) {
-                outputCompleteLatch?.countDown()
                 logger(
                     LOG_SCOPE,
                     "POSPrinter output complete",
@@ -562,10 +569,12 @@ class BixolonSdkPrinter(
             isPrinterEnabled = true
             logger(LOG_SCOPE, "POSPrinter.setDeviceEnabled(true) success", "")
 
-            logger(LOG_SCOPE, "POSPrinter.setAsyncMode", "enabled=true")
-            printer.setAsyncMode(true)
-            printer.setCharacterSet(BXLConst.CS_858_EURO)
-            printer.setCharacterEncoding(BXLConst.CE_UTF8)
+            // Sample parity: sync mode (printNormal blocks and throws on error).
+            // setCharacterSet / setCharacterEncoding are intentionally not
+            // called — the Bixolon sample never sets them and on SPP-R310 some
+            // combinations silently leave the printer unable to print.
+            logger(LOG_SCOPE, "POSPrinter.setAsyncMode", "enabled=false")
+            printer.setAsyncMode(false)
 
             activeLogicalName = logicalName
             activePrinterAddress = printerAddress
@@ -602,7 +611,7 @@ class BixolonSdkPrinter(
         } catch (t: Throwable) {
             logger(LOG_SCOPE, "Failed closing printer during shutdown", t.stackTraceToString())
         }
-        outputCompleteLatch = null
+        lastErrorEvent = null
         isPrinterEnabled = false
         isPrinterClaimed = false
         isPrinterOpened = false
