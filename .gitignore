@@ -12,7 +12,6 @@
 .swiftpm/
 migrate_working_dir/
 .fvm/
-.fvmrc
 
 # IntelliJ related
 *.iml
@@ -20,9 +19,7 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# VS Code
 .vscode/
 
 # Flutter/Dart/Pub related
@@ -36,21 +33,31 @@ migrate_working_dir/
 .pub/
 /build/
 
-# Web related
-
 # Symbolication related
 app.*.symbols
 
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android Studio build artifacts
 /android/app/debug
 /android/app/profile
 /android/app/release
 
-# Custom ignored Dart files
-lib/services/api_service.dart
-lib/theme/themes.dart
-# Theme overrides (local only)
-lib/theme/theme_extensions/app_data_table_theme.dart
+# Android local config
+android/local.properties
+
+# Environment / secrets
+.env
+.env.*
+*.keystore
+*.jks
+key.properties
+
+# Test coverage
+coverage/
+
+# Local-only Dart overrides
+lib/services/api_service.local.dart
+lib/theme/themes.local.dart
+lib/theme/theme_extensions/app_data_table_theme.local.dart
