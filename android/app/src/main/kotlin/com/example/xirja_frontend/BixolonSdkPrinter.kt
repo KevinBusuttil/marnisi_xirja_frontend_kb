@@ -166,7 +166,6 @@ class BixolonSdkPrinter(
             // Sample parity: prepend an ESC |N "normal" reset so the printer
             // starts each receipt in a known state, then append a small feed.
             val finalPrintData = buildString {
-                append(EscapeSequencePrefix)
                 append(ESC_NORMAL_RESET)
                 append(printData)
                 append("\n\n\n")
@@ -208,9 +207,6 @@ class BixolonSdkPrinter(
             )
         }
     }
-
-    private val EscapeSequencePrefix: String
-        get() = String(byteArrayOf(0x1B, 0x7C))
 
     fun printSampleReceipt(
         selectedPrinterName: String,
