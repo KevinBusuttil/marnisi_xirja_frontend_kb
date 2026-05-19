@@ -37,9 +37,8 @@ void main() {
     expect(sdkSource, contains('bxlLibExists='));
     expect(sdkSource, contains('"Config interesting files"'));
     expect(sdkSource, contains('private fun collectInterestingFiles('));
-    expect(sdkSource, contains('POSPrinter.setAsyncMode", "enabled=true"'));
-    expect(sdkSource, contains('POSPrinter.awaitOutputComplete start'));
-    expect(sdkSource, contains('POSPrinter.awaitOutputComplete success'));
+    expect(sdkSource, contains('POSPrinter.setAsyncMode", "enabled=false"'));
+    expect(sdkSource, contains('"POSPrinter.printNormal success"'));
     expect(sdkSource, contains('Reusing active printer session'));
     expect(sdkSource, contains('Printer session established'));
     expect(sdkSource, contains('closeActiveSessionQuietly(reason = "print_failure")'));

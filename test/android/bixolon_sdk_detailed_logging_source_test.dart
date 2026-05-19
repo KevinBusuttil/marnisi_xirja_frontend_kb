@@ -17,9 +17,9 @@ void main() {
     expect(sdkSource, contains('"POSPrinter.claim success"'));
     expect(sdkSource, contains('"POSPrinter.setDeviceEnabled(true)"'));
     expect(sdkSource, contains('"POSPrinter.setDeviceEnabled(true) success"'));
-    expect(sdkSource, contains('"POSPrinter.setAsyncMode", "enabled=true"'));
+    expect(sdkSource, contains('"POSPrinter.setAsyncMode", "enabled=false"'));
     expect(sdkSource, contains('logger(LOG_SCOPE, "POSPrinter.printNormal"'));
-    expect(sdkSource, contains('POSPrinter.awaitOutputComplete start'));
+    expect(sdkSource, contains('"POSPrinter.printNormal success"'));
     expect(
       sdkSource,
       contains('message = t.message ?: t::class.java.simpleName'),
