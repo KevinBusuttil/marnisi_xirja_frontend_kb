@@ -43,6 +43,9 @@ class MainActivity : FlutterActivity() {
     private val nativeBootstrapInitialized = AtomicBoolean(false)
     private val uncaughtLoggerInstalled = AtomicBoolean(false)
     private val vendorLoggingInitialized = AtomicBoolean(false)
+    private val bixolonNativeLibraryLoadAttempted = AtomicBoolean(false)
+    @Volatile
+    private var bixolonNativeLibraryLoaded = false
     private val bixolonSdkPrinter by lazy {
         BixolonSdkPrinter(applicationContext) { scope, message, data ->
             appendNativeDebugLog(scope = scope, message = message, data = data)
@@ -194,6 +197,12 @@ class MainActivity : FlutterActivity() {
             )
             enableSampleCompatStrictModeIfNeeded()
             installUnhandledExceptionLogger()
+            // Must load the BIXOLON native library before any class in the
+            // vendor SDK is touched — LogService.<clinit> calls a native
+            // method, and if the .so isn't loaded yet it fails with
+            // UnsatisfiedLinkError, permanently poisoning the class and
+            // causing every later SDK call to throw NoClassDefFoundError.
+            loadBixolonNativeLibrary()
             initializeBixolonVendorLogging()
             appendNativeDebugLog(
                 scope = "MainActivity",
@@ -238,8 +247,39 @@ class MainActivity : FlutterActivity() {
         result.success(true)
     }
 
+    private fun loadBixolonNativeLibrary() {
+        if (!bixolonNativeLibraryLoadAttempted.compareAndSet(false, true)) {
+            return
+        }
+        try {
+            System.loadLibrary("bxl_common")
+            bixolonNativeLibraryLoaded = true
+            appendNativeDebugLog(
+                scope = "MainActivity",
+                message = "Bixolon native library loaded",
+                data = "lib=bxl_common"
+            )
+        } catch (t: Throwable) {
+            appendNativeDebugLog(
+                scope = "MainActivity",
+                message = "Bixolon native library load failed",
+                data = "${t::class.java.name}: ${t.message}"
+            )
+        }
+    }
+
     private fun initializeBixolonVendorLogging() {
         if (!vendorLoggingInitialized.compareAndSet(false, true)) {
+            return
+        }
+        if (!bixolonNativeLibraryLoaded) {
+            // Touching LogService without the native library bound will
+            // permanently poison its class init via UnsatisfiedLinkError,
+            // breaking every later BXLConfigLoader/POSPrinter call. Skip.
+            appendNativeDebugLog(
+                scope = "MainActivity",
+                message = "Bixolon vendor logging skipped (native lib not loaded)"
+            )
             return
         }
         try {
